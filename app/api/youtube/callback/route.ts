@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { saveRefreshToken } from "../../../../lib/youtube-token";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -7,9 +8,7 @@ export async function GET(req: NextRequest) {
   const error = searchParams.get("error");
   const savedState = req.cookies.get("yt_oauth_state")?.value;
 
-  if (error) {
-    return NextResponse.json({ error }, { status: 400 });
-  }
+  if (error) return NextResponse.json({ error }, { status: 400 });
   if (!code || !state || state !== savedState) {
     return NextResponse.json({ error: "Invalid state or code" }, { status: 400 });
   }
@@ -25,22 +24,22 @@ export async function GET(req: NextRequest) {
       grant_type: "authorization_code",
     }),
   });
-
   const tokens = await tokenRes.json();
-  if (!tokenRes.ok) {
-    return NextResponse.json(tokens, { status: 400 });
+  if (!tokenRes.ok) return NextResponse.json(tokens, { status: 400 });
+
+  if (!tokens.refresh_token) {
+    return NextResponse.json(
+      { error: "No refresh_token. Revoke access at myaccount.google.com/permissions and log in again." },
+      { status: 400 }
+    );
   }
 
-  const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
-<body style="font-family:sans-serif;padding:16px;word-break:break-all">
-<h3>Copy refresh token</h3>
-<p>Save it as <b>YOUTUBE_REFRESH_TOKEN</b> in Vercel, then remove this route.</p>
-<pre>${tokens.refresh_token ?? "No refresh_token returned. Revoke access in your Google account and log in again."}</pre>
-</body>`;
+  await saveRefreshToken(tokens.refresh_token);
 
-  const res = new NextResponse(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
+  const res = new NextResponse(
+    `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;padding:16px"><h3>YouTube connected. Token saved.</h3></body>`,
+    { headers: { "Content-Type": "text/html; charset=utf-8" } }
+  );
   res.cookies.delete("yt_oauth_state");
   return res;
 }
