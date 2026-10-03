@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
 const SCOPES = [
@@ -7,9 +7,13 @@ const SCOPES = [
   "https://www.googleapis.com/auth/youtube.readonly",
 ];
 
-export async function GET() {
-  const state = crypto.randomBytes(16).toString("hex");
+export async function GET(req: NextRequest) {
+  const key = new URL(req.url).searchParams.get("key");
+  if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
+  const state = crypto.randomBytes(16).toString("hex");
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: process.env.YOUTUBE_REDIRECT_URI!,
